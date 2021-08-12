@@ -90,7 +90,7 @@ void lcd_puts( const char *mes )
 #define contrast 40
 extern const char cgramdata[8][8];
 
-void lcd_init()
+void lcd_init(int c, int f)
 {
 	// reset
 	_delay_ms(500);
@@ -104,9 +104,9 @@ void lcd_init()
 	lcd_cmd(0x38); // function set
 	lcd_cmd(0x39); // function set
 	lcd_cmd(0x14); // interval osc
-	lcd_cmd(0x70 | (contrast & 15)); // contrast low
-	lcd_cmd(0x5c | (contrast >> 4 & 3)); // contrast high / icon / power
-	lcd_cmd(0x6c); // follower control
+	lcd_cmd(0x70 | (c & 15)); // contrast low
+	lcd_cmd(0x5c | (c >> 4 & 3)); // contrast high / icon / power
+	lcd_cmd(0x60+f); // follower control
 	_delay_ms(300);
 
 	lcd_cmd(0x3c); // function set (1line). if set to 2lines->0x38, 1line->0x3c
@@ -437,7 +437,7 @@ int main(void)
 	PORTC |= 4;
 	
 	setup_iic();
-	lcd_init();
+	lcd_init(52,3);
 	lcd_puts("Start BLE device");
 
 	setup_USART(BAUD_PRESCALE);
@@ -496,21 +496,21 @@ int main(void)
 
 		// 電池電圧をアイコン表示
 		if( vol < 150 )
-		lcd_data('\x00');
+			lcd_data('\x00');
 		else if(vol<170)
-		lcd_data('\x01');
+			lcd_data('\x01');
 		else if(vol<190)
-		lcd_data('\x02');
+			lcd_data('\x02');
 		else if(vol<210)
-		lcd_data('\x03');
+			lcd_data('\x03');
 		else if(vol<230)
-		lcd_data('\x04');
+			lcd_data('\x04');
 		else if(vol<250)
-		lcd_data('\x05');
+			lcd_data('\x05');
 		else if(vol<270)
-		lcd_data('\x06');
+			lcd_data('\x06');
 		else
-		lcd_data('\x07');
+			lcd_data('\x07');
 
 		if( bline_cmp != 0 )
 		{
