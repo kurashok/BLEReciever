@@ -81,13 +81,49 @@ void lcd_data( uint8_t d )
 	write_reg( 0x3e, 0x40, d );
 }
 
+void lcd_move(uint8_t pos)
+{
+	lcd_cmd(0x80 | pos);
+}
+
 void lcd_puts( const char *mes )
 {
 	while(*mes)
 	lcd_data(*mes++);
 }
 
-#define contrast 40
+#define LCD_BUF_MAX 16
+char lcd_buffer[LCD_BUF_MAX+1];
+uint8_t pos;
+
+void lcd_vclear()
+{
+	for( int i=0; i<LCD_BUF_MAX; i++)
+		lcd_buffer[i] = ' ';
+	pos = 0;
+}
+
+void lcd_vdata( uint8_t d )
+{
+	if( pos < LCD_BUF_MAX )
+		lcd_buffer[pos++] = d;
+}
+
+void lcd_put_vdata()
+{
+	lcd_move(0);
+	for(int i=0; i<LCD_BUF_MAX; i++)
+	{
+		lcd_data(lcd_buffer[i]);
+	}
+}
+
+void lcd_vputs( const char *mes )
+{
+	while(*mes)
+	lcd_vdata(*mes++);
+}
+
 extern const char cgramdata[8][8];
 
 void lcd_init(int c, int f)
@@ -123,11 +159,6 @@ void lcd_init(int c, int f)
 		}
 	}
 	lcd_cmd(0x01); // clear display
-}
-
-void lcd_move(uint8_t pos)
-{
-	lcd_cmd(0x80 | pos);
 }
 
 #define BAUD_PRESCALE_RUNNING 103 // U2X=1 8MHz 9600B
@@ -458,6 +489,10 @@ int main(void)
 	sei();
 
 	bool RcvSuccess = false;
+	lcd_vclear();
+	lcd_vdata('\0'); // 電池残量の表示部分。ダミー
+	lcd_vputs("No Signal: ");
+	lcd_vputs(strAddr);
 	for(;;)
 	{
 		// 電池電圧測定
@@ -475,8 +510,8 @@ int main(void)
 		USART_SendStr("j,1\x0d\x0a");
 		USART_SendStr("f\x0d\x0a");
 
-		// 最大５秒待機
-		for(int k=0; k<50; k++)
+		// 最大10秒待機
+		for(int k=0; k<100; k++)
 		{
 			_delay_ms(100);
 			if( bline_cmp != 0 ) break;	
@@ -492,25 +527,24 @@ int main(void)
 		lcd_puts(buf);
 		_delay_ms(2000);
 		
-		lcd_cmd(0x01); // clear display
-
 		// 電池電圧をアイコン表示
+		uint8_t bat_icon;
 		if( vol < 150 )
-			lcd_data('\x00');
+			bat_icon = '\x00';
 		else if(vol<170)
-			lcd_data('\x01');
+			bat_icon = '\x01';
 		else if(vol<190)
-			lcd_data('\x02');
+			bat_icon = '\x02';
 		else if(vol<210)
-			lcd_data('\x03');
+			bat_icon = '\x03';
 		else if(vol<230)
-			lcd_data('\x04');
+			bat_icon = '\x04';
 		else if(vol<250)
-			lcd_data('\x05');
+			bat_icon = '\x05';
 		else if(vol<270)
-			lcd_data('\x06');
+			bat_icon = '\x06';
 		else
-			lcd_data('\x07');
+			bat_icon = '\x07';
 
 		if( bline_cmp != 0 )
 		{
@@ -519,38 +553,42 @@ int main(void)
 			bline_cmp = 0;
 			char *data = strstr((const char *)MSG_BUF, "9999");
 
+			// 表示バッファをクリア
+			lcd_vclear();
+			lcd_vdata(' '); // 電池残量の表示部分。ダミー
+
 			// 気温符号
 			if(data[9] == '0')
-				lcd_data(' ');
+				lcd_vdata(' ');
 			else
-				lcd_data('-');
+				lcd_vdata('-');
 
 			// 気温
 			t_2_str(data+10, buf);
-			lcd_puts(buf);
-			lcd_data('\xf2'); // °
+			lcd_vputs(buf);
+			lcd_vdata('\xf2'); // °
 
 			if( strlen((const char*)data) > 18 )
 			{
 				// 湿度
-				lcd_data(' ');
+				lcd_vdata(' ');
 				h_2_str(data+18, buf);
-				lcd_puts(buf);
-				lcd_data('\x25'); // %
+				lcd_vputs(buf);
+				lcd_vdata('\x25'); // %
 
 				// 気圧
-				lcd_data(' ');
+				lcd_vdata(' ');
 				p_2_str(data+22, buf);
-				lcd_puts(buf);
+				lcd_vputs(buf);
 			}
 		}
 		else
 		{
 			RcvSuccess = false;
-			lcd_puts("No Signal: ");
-			lcd_puts(strAddr);
+			// 前の表示のままにするので、バッファを変更しない
 		}
-
+		lcd_buffer[0] = bat_icon; // 電池残量アイコンのみ直接書き換え
+		lcd_put_vdata(); // バッファをLCDに転送
 
 		_delay_ms(5);
 		PORTB &= ~1; // sleep mode
