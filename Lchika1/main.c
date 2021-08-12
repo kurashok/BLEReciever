@@ -260,11 +260,19 @@ void p_2_str(char *mes, char *buf)
 
 void h_2_str(char *mes, char *buf)
 {
-	int tmp = (mes[0]-0x30)*1000;
+	int tmp;
+	// ¼“x‚Ì‚PŒ…–Ú‚ÍA‚Ì‰Â”\«‚ ‚é‚Ì‚Åê‡•ª‚¯‚·‚é
+	if(isdigit(mes[0]))
+		tmp = (mes[0]-0x30)*1000;
+	else
+		tmp = 10*1000;
 	tmp += (mes[1]-0x30)*100;
 	tmp += (mes[2]-0x30)*10;
 	tmp += 50;
-	sprintf(buf, "%2d", tmp/100);
+	if( tmp/100 <= 99 )
+		sprintf(buf, "%2d", tmp/100);
+	else
+		strcpy( buf, "HH" );
 }
 
 void v_2_str(char *mes, char *buf)
@@ -546,10 +554,10 @@ int main(void)
 
 		_delay_ms(5);
 		PORTB &= ~1; // sleep mode
-		// óM¬Œ÷‚Ìê‡64•bA¸”s‚Ìê‡24•b‘Ò‹@
+		// óM¬Œ÷‚Ìê‡120•bA¸”s‚Ìê‡32•b‘Ò‹@
 		int wait;
-		if( RcvSuccess ) wait = 8;
-		else wait = 3;
+		if( RcvSuccess ) wait = 15;
+		else wait = 4;
 		for(int j=0; j<wait; j++)
 		{
 			setup_WDT(WDT_8s);
