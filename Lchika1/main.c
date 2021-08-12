@@ -539,12 +539,8 @@ int main(void)
 			bat_icon = '\x03';
 		else if(vol<230)
 			bat_icon = '\x04';
-		else if(vol<250)
-			bat_icon = '\x05';
-		else if(vol<270)
-			bat_icon = '\x06';
 		else
-			bat_icon = '\x07';
+			bat_icon = '\x05';
 
 		if( bline_cmp != 0 )
 		{
@@ -586,6 +582,7 @@ int main(void)
 		{
 			RcvSuccess = false;
 			// 前の表示のままにするので、バッファを変更しない
+			lcd_buffer[6] = '\x06';
 		}
 		lcd_buffer[0] = bat_icon; // 電池残量アイコンのみ直接書き換え
 		lcd_put_vdata(); // バッファをLCDに転送
