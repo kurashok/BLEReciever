@@ -89,7 +89,7 @@ unsigned char i2c_start(unsigned char addr, unsigned char eeaddr)
 		default:
 		return 0;
 	}
-	TWDR = addr | TW_WRITE;
+	TWDR = addr<<1 | TW_WRITE;
 	TWCR = _BV(TWINT) | _BV(TWEN);
 	switch(wait_stat()){
 		case TW_MT_SLA_ACK:
@@ -176,13 +176,13 @@ int write_reg(uint8_t dev_addr, uint8_t reg_addr, uint8_t data)
 void lcd_cmd( uint8_t cmd )
 {
 	//write_reg( 0x3e, 0, cmd );
-	i2c_write( 0x3e<<1, 0, cmd );
+	i2c_write( 0x3e, 0, cmd );
 }
 
 void lcd_data( uint8_t d )
 {
 	//write_reg( 0x3e, 0x40, d );
-	i2c_write( 0x3e<<1, 0x40, d );
+	i2c_write( 0x3e, 0x40, d );
 }
 
 void lcd_move(uint8_t pos)
