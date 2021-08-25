@@ -8,6 +8,7 @@
 
 #include <avr/io.h>
 //#include "avr/iom328p.h"
+#include <compat/twi.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
 #include <stdio.h>
@@ -16,7 +17,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <ctype.h>
-#include "iic.h"
+//#include "iic.h"
 #include "eeprom.h"
 #include "adc.h"
 
@@ -46,6 +47,106 @@ void setup_WDT( uint8_t delay )
 	WDTCSR |= (1 << WDIE); // 割り込み許可
 }
 
+void i2c_init()
+{
+	// TWBR = {(CLOCK(8MHz) / I2C_CLK) - 16} / 2;
+	// I2C_CLK = 100kHz, CLOCK = 8MHz, TWBR = 32
+	// I2C_CLK = 100kHz, CLOCK = 20MHz, TWBR = 92
+	TWBR = 0;
+	TWSR = 0;
+}
+
+
+
+unsigned char wait_stat()
+{
+	while(!(TWCR & _BV(TWINT)));
+	
+	return TW_STATUS;
+}
+
+
+void i2c_stop()
+{
+	
+	TWCR = _BV(TWINT) | _BV(TWSTO) | _BV(TWEN);
+	while(TWCR & _BV(TWSTO));
+}
+
+
+
+unsigned char i2c_start(unsigned char addr, unsigned char eeaddr)
+{
+	i2c_restart:
+	i2c_start_retry:
+	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN);
+	switch(wait_stat()){
+		case TW_REP_START:
+		case TW_START:
+		break;
+		case TW_MT_ARB_LOST:
+		goto i2c_start_retry;
+		default:
+		return 0;
+	}
+	TWDR = addr | TW_WRITE;
+	TWCR = _BV(TWINT) | _BV(TWEN);
+	switch(wait_stat()){
+		case TW_MT_SLA_ACK:
+		break;
+		case TW_MT_SLA_NACK:
+	PORTD |= (1 << 4);
+		goto i2c_restart;
+		case TW_MT_ARB_LOST:
+		goto i2c_start_retry;
+		default:
+		return 0;
+	}
+	TWDR = eeaddr;
+	TWCR = _BV(TWINT) | _BV(TWEN);
+	switch(wait_stat()){
+		case TW_MT_DATA_ACK:
+		break;
+		case TW_MT_DATA_NACK:
+		i2c_stop();
+		return 0;
+		case TW_MT_ARB_LOST:
+		goto i2c_start_retry;
+		default:
+		return 0;
+	}
+	return 1;
+}
+
+
+
+unsigned char i2c_write(unsigned addr, unsigned char eeaddr, unsigned char dat)
+{
+	unsigned char rv=0;
+
+	//restart:
+	begin:
+	if(!i2c_start(addr, eeaddr))	goto quit;
+	
+	TWDR = dat;
+	TWCR = _BV(TWINT) | _BV(TWEN);
+	switch(wait_stat()){
+		case TW_MT_DATA_ACK:
+		break;
+		case TW_MT_ARB_LOST:
+		goto begin;
+		case TW_MT_DATA_NACK:
+		default:
+		goto quit;
+	}
+	rv = 1;
+	quit:
+	i2c_stop();
+	_delay_us(50);	// １命令ごとに余裕を見て50usウェイトします。
+	
+	return rv;
+}
+/*
 int write_reg(uint8_t dev_addr, uint8_t reg_addr, uint8_t data)
 {
 	iic_start();
@@ -68,17 +169,20 @@ int write_reg(uint8_t dev_addr, uint8_t reg_addr, uint8_t data)
 	}
 
 	iic_stop();
+	_delay_us(50);
 	return 0;
 }
-
+*/
 void lcd_cmd( uint8_t cmd )
 {
-	write_reg( 0x3e, 0, cmd );
+	//write_reg( 0x3e, 0, cmd );
+	i2c_write( 0x3e<<1, 0, cmd );
 }
 
 void lcd_data( uint8_t d )
 {
-	write_reg( 0x3e, 0x40, d );
+	//write_reg( 0x3e, 0x40, d );
+	i2c_write( 0x3e<<1, 0x40, d );
 }
 
 void lcd_move(uint8_t pos)
@@ -125,16 +229,34 @@ void lcd_vputs( const char *mes )
 }
 
 extern const char cgramdata[8][8];
-
-void lcd_init(int c, int f)
+/*
+void init_lcd(unsigned char c, unsigned char f)
 {
-	// reset
-	_delay_ms(500);
-	PORTC &= ~2; // reset = low
-	_delay_ms(1);
-	PORTC |= 2;  // reset = hi
-	_delay_ms(10);
+	_delay_ms(40);
+	lcd_cmd(0b00111000); // function set
+	lcd_cmd(0b00111001); // function set
+	lcd_cmd(0b00010100); // interval osc
+	lcd_cmd(0b01110000 | (c & 0xF)); // contrast Low
+	
+	lcd_cmd(0b01011100 | ((c >> 4) & 0x3)); // contast High/icon/power
+	lcd_cmd(0b01101000 | f); // follower control
+	_delay_ms(300);
 
+	lcd_cmd(0b00111100); // function set
+	lcd_cmd(0b00001100); // Display On
+	lcd_cmd(0b00000001); // Clear Display
+	_delay_ms(2);			 // Clear Displayは追加ウェイトが必要
+	
+	// １行目の表示
+	lcd_puts("0123456789012345");
+	
+	// ２行目にカーソルを移動
+	lcd_cmd(0b11000000);	// ADDR=0x40
+	
+}
+*/
+void init_lcd(int c, int f)
+{
 	// LCD initialize
 	_delay_ms(40);
 	lcd_cmd(0x38); // function set
@@ -142,7 +264,7 @@ void lcd_init(int c, int f)
 	lcd_cmd(0x14); // interval osc
 	lcd_cmd(0x70 | (c & 15)); // contrast low
 	lcd_cmd(0x5c | (c >> 4 & 3)); // contrast high / icon / power
-	lcd_cmd(0x60+f); // follower control
+	lcd_cmd(0x68+f); // follower control
 	_delay_ms(300);
 
 	lcd_cmd(0x3c); // function set (1line). if set to 2lines->0x38, 1line->0x3c
@@ -467,8 +589,21 @@ int main(void)
 	DDRC |= 4;
 	PORTC |= 4;
 	
-	setup_iic();
-	lcd_init(52,3);
+	//setup_iic();
+	DDRC |= _BV(1);			 // RSTピンを出力に
+	PORTC |= _BV(4) | _BV(5); // SCL, SDA内蔵プルアップを有効
+	
+	i2c_init();				 // AVR内蔵I2Cモジュールの初期化
+	_delay_ms(500);
+
+	// reset
+	_delay_ms(500);
+	PORTC &= ~2; // reset = low
+	_delay_ms(1);
+	PORTC |= 2;  // reset = hi
+	_delay_ms(10);
+
+	init_lcd(0x22,4);
 	lcd_puts("Start BLE device");
 
 	setup_USART(BAUD_PRESCALE);
