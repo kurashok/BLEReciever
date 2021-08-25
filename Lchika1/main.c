@@ -197,20 +197,34 @@ void lcd_puts( const char *mes )
 }
 
 #define LCD_BUF_MAX 16
-char lcd_buffer[LCD_BUF_MAX+1];
-uint8_t pos;
+char lcd_buffer[2][LCD_BUF_MAX+1];
+uint8_t upos, dpos;
+uint8_t u_d;
+extern const char largenum[10][2][3];
 
 void lcd_vclear()
 {
 	for( int i=0; i<LCD_BUF_MAX; i++)
-		lcd_buffer[i] = ' ';
-	pos = 0;
+	{
+		lcd_buffer[0][i] = ' ';
+		lcd_buffer[1][i] = ' ';
+	}
+	upos = dpos = 0;
+	u_d = 0;
 }
 
 void lcd_vdata( uint8_t d )
 {
-	if( pos < LCD_BUF_MAX )
-		lcd_buffer[pos++] = d;
+	if( u_d == 0 )
+	{
+		if( upos < LCD_BUF_MAX )
+			lcd_buffer[0][upos++] = d;
+	}
+	else
+	{
+		if( dpos < LCD_BUF_MAX )
+		lcd_buffer[1][dpos++] = d;
+	}
 }
 
 void lcd_put_vdata()
@@ -218,7 +232,12 @@ void lcd_put_vdata()
 	lcd_move(0);
 	for(int i=0; i<LCD_BUF_MAX; i++)
 	{
-		lcd_data(lcd_buffer[i]);
+		lcd_data(lcd_buffer[0][i]);
+	}
+	lcd_move(0x40);
+	for(int i=0; i<LCD_BUF_MAX; i++)
+	{
+		lcd_data(lcd_buffer[1][i]);
 	}
 }
 
@@ -228,7 +247,67 @@ void lcd_vputs( const char *mes )
 	lcd_vdata(*mes++);
 }
 
-extern const char cgramdata[8][8];
+void lcd_vmove( uint8_t pos, uint8_t ud)
+{
+	u_d = ud;
+	if(u_d == 0)
+		upos = pos;
+	else
+		dpos = pos;
+}
+
+void lcd_vput_largechar( char c, uint8_t pos )
+{
+	if( c < '0' || c > '9')
+	{
+		lcd_vmove( pos, 0 );
+		lcd_vdata(' ');
+		lcd_vdata(' ');
+		lcd_vdata(' ');
+
+		lcd_vmove( pos, 1 );
+		lcd_vdata(' ');
+		lcd_vdata(' ');
+		lcd_vdata(' ');
+	}
+	uint8_t n = c - '0';
+
+	lcd_vmove( pos, 0 );
+	lcd_vdata(largenum[n][0][0]);
+	lcd_vdata(largenum[n][0][1]);
+	lcd_vdata(largenum[n][0][2]);
+
+	lcd_vmove( pos, 1 );
+	lcd_vdata(largenum[n][1][0]);
+	lcd_vdata(largenum[n][1][1]);
+	lcd_vdata(largenum[n][1][2]);
+}
+
+void lcd_vput_temperature( uint8_t pol, const char *buf )
+{
+	// 極性
+	lcd_vmove(0,0);
+	if( pol == 0 )
+		lcd_vdata(' ');
+	else
+		lcd_vdata('\x01');
+
+	// 10の桁
+	lcd_vput_largechar(buf[0],1);
+	// 1の桁
+	lcd_vput_largechar(buf[1],4);
+	// 少数
+	lcd_vput_largechar(buf[3],8);
+
+	// 小数点
+	lcd_vmove(7,1);
+	lcd_vdata(0x0f);
+	// 度
+	lcd_vmove(11,0);
+	lcd_vdata(0xdf);
+}
+
+extern const char largechar[8][8];
 /*
 void init_lcd(unsigned char c, unsigned char f)
 {
@@ -277,7 +356,7 @@ void init_lcd(int c, int f)
 		for(int r=0; r<8; r++)
 		{
 			lcd_cmd(0x40+c*8+r);
-			lcd_data(cgramdata[c][r]);
+			lcd_data(largechar[c][r]);
 		}
 	}
 	lcd_cmd(0x01); // clear display
@@ -662,20 +741,7 @@ int main(void)
 		lcd_puts(buf);
 		_delay_ms(2000);
 		
-		// 電池電圧をアイコン表示
-		uint8_t bat_icon;
-		if( vol < 150 )
-			bat_icon = '\x00';
-		else if(vol<170)
-			bat_icon = '\x01';
-		else if(vol<190)
-			bat_icon = '\x02';
-		else if(vol<210)
-			bat_icon = '\x03';
-		else if(vol<230)
-			bat_icon = '\x04';
-		else
-			bat_icon = '\x05';
+		// 電池電圧をアイコン表示：削除
 
 		if( bline_cmp != 0 )
 		{
@@ -686,30 +752,23 @@ int main(void)
 
 			// 表示バッファをクリア
 			lcd_vclear();
-			lcd_vdata(' '); // 電池残量の表示部分。ダミー
 
-			// 気温符号
-			if(data[9] == '0')
-				lcd_vdata(' ');
-			else
-				lcd_vdata('-');
-
-			// 気温
+			// 気温をデカ文字で表示
 			t_2_str(data+10, buf);
-			lcd_vputs(buf);
-			lcd_vdata('\xf2'); // °
+			lcd_vput_temperature(data[9], buf);
 
 			if( strlen((const char*)data) > 18 )
 			{
 				// 湿度
-				lcd_vdata(' ');
 				h_2_str(data+18, buf);
+				lcd_vmove(13,0);
 				lcd_vputs(buf);
 				lcd_vdata('\x25'); // %
 
 				// 気圧
 				lcd_vdata(' ');
 				p_2_str(data+22, buf);
+				lcd_vmove(12,1);
 				lcd_vputs(buf);
 			}
 		}
@@ -717,9 +776,8 @@ int main(void)
 		{
 			RcvSuccess = false;
 			// 前の表示のままにするので、バッファを変更しない
-			lcd_buffer[6] = '\x06';
+			// 受信失敗を知らせる表示だけを行う
 		}
-		lcd_buffer[0] = bat_icon; // 電池残量アイコンのみ直接書き換え
 		lcd_put_vdata(); // バッファをLCDに転送
 
 		_delay_ms(5);
