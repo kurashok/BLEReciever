@@ -346,7 +346,7 @@ void init_lcd(int c, int f)
 	lcd_cmd(0x68+f); // follower control
 	_delay_ms(300);
 
-	lcd_cmd(0x3c); // function set (1line). if set to 2lines->0x38, 1line->0x3c
+	lcd_cmd(0x38); // function set (2line). if set to 2lines->0x38, 1line->0x3c
 	lcd_cmd(0x0c); // display on
 	lcd_cmd(0x01); // clear display
 	_delay_ms(2);
