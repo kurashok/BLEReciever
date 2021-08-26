@@ -288,9 +288,9 @@ void lcd_vput_temperature( uint8_t pol, const char *buf )
 	// 極性
 	lcd_vmove(0,0);
 	if( pol == 0 )
-		lcd_vdata(' ');
-	else
 		lcd_vdata('\x01');
+	else
+		lcd_vdata(' ');
 
 	// 10の桁
 	lcd_vput_largechar(buf[0],1);
@@ -299,12 +299,10 @@ void lcd_vput_temperature( uint8_t pol, const char *buf )
 	// 少数
 	lcd_vput_largechar(buf[3],8);
 
-	// 小数点
-	lcd_vmove(7,1);
-	lcd_vdata(0x0f);
 	// 度
 	lcd_vmove(11,0);
-	lcd_vdata(0xdf);
+	//lcd_vdata(0xdf); // 上付き丸
+	lcd_vdata('C');
 }
 
 extern const char largechar[8][8];
@@ -778,6 +776,17 @@ int main(void)
 			// 前の表示のままにするので、バッファを変更しない
 			// 受信失敗を知らせる表示だけを行う
 		}
+		// 小数点
+		lcd_vmove(7,1);
+		if( RcvSuccess )
+		{
+			lcd_vdata('\xa1'); // 成功時 a1=下付き丸
+		}
+		else
+		{
+			lcd_vdata('x'); // 失敗時
+		}
+
 		lcd_put_vdata(); // バッファをLCDに転送
 
 		_delay_ms(5);
