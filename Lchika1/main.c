@@ -302,6 +302,8 @@ void lcd_vput_temperature( uint8_t pol, const char *buf )
 	// 度
 	lcd_vmove(11,0);
 	//lcd_vdata(0xdf); // 上付き丸
+	//lcd_vdata('\xa1'); // 下付き丸
+	lcd_vmove(11,1);
 	lcd_vdata('C');
 }
 
@@ -702,8 +704,7 @@ int main(void)
 
 	bool RcvSuccess = false;
 	lcd_vclear();
-	lcd_vdata('\0'); // 電池残量の表示部分。ダミー
-	lcd_vputs("No Signal: ");
+	lcd_vputs(" No Signal: ");
 	lcd_vputs(strAddr);
 	for(;;)
 	{
@@ -759,14 +760,14 @@ int main(void)
 			{
 				// 湿度
 				h_2_str(data+18, buf);
-				lcd_vmove(13,0);
+				lcd_vmove(13,1);
 				lcd_vputs(buf);
 				lcd_vdata('\x25'); // %
 
 				// 気圧
 				lcd_vdata(' ');
 				p_2_str(data+22, buf);
-				lcd_vmove(12,1);
+				lcd_vmove(12,0);
 				lcd_vputs(buf);
 			}
 		}
