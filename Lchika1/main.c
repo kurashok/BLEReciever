@@ -706,6 +706,7 @@ int main(void)
 	lcd_vclear();
 	lcd_vputs(" No Signal: ");
 	lcd_vputs(strAddr);
+	static char str_volt[10] = ""; // staticをつけないとローカル変数に再利用されてしまう。
 	for(;;)
 	{
 		// 電池電圧測定
@@ -736,7 +737,10 @@ int main(void)
 		lcd_cmd(0x01);
 		int vol = (int)(((double)adc_val * (3.3/1024) +0.005) *100);
 		char buf[10];
-		sprintf(buf, "%1d.%02dV", vol/100, vol%100);
+		sprintf(buf, "M: %1d.%02dV", vol/100, vol%100);
+		lcd_puts(buf);
+		lcd_move(0x40);
+		sprintf(buf, "S: %sV", str_volt);
 		lcd_puts(buf);
 		_delay_ms(2000);
 		
@@ -755,6 +759,9 @@ int main(void)
 			// 気温をデカ文字で表示
 			t_2_str(data+10, buf);
 			lcd_vput_temperature(data[9], buf);
+
+			// センサ電圧
+			v_2_str(data+14,str_volt);
 
 			if( strlen((const char*)data) > 18 )
 			{
