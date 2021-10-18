@@ -95,7 +95,6 @@ unsigned char i2c_start(unsigned char addr, unsigned char eeaddr)
 		case TW_MT_SLA_ACK:
 		break;
 		case TW_MT_SLA_NACK:
-	PORTD |= (1 << 4);
 		goto i2c_restart;
 		case TW_MT_ARB_LOST:
 		goto i2c_start_retry;
@@ -270,17 +269,20 @@ void lcd_vput_largechar( char c, uint8_t pos )
 		lcd_vdata(' ');
 		lcd_vdata(' ');
 	}
-	uint8_t n = c - '0';
+	else
+	{
+		uint8_t n = c - '0';
 
-	lcd_vmove( pos, 0 );
-	lcd_vdata(largenum[n][0][0]);
-	lcd_vdata(largenum[n][0][1]);
-	lcd_vdata(largenum[n][0][2]);
+		lcd_vmove( pos, 0 );
+		lcd_vdata(largenum[n][0][0]);
+		lcd_vdata(largenum[n][0][1]);
+		lcd_vdata(largenum[n][0][2]);
 
-	lcd_vmove( pos, 1 );
-	lcd_vdata(largenum[n][1][0]);
-	lcd_vdata(largenum[n][1][1]);
-	lcd_vdata(largenum[n][1][2]);
+		lcd_vmove( pos, 1 );
+		lcd_vdata(largenum[n][1][0]);
+		lcd_vdata(largenum[n][1][1]);
+		lcd_vdata(largenum[n][1][2]);
+	}
 }
 
 void lcd_vput_temperature( uint8_t pol, const char *buf )
@@ -695,7 +697,7 @@ int main(void)
 	USART_SendStr("SR,1A000000\x0d\x0a"); // ペリフェラル、MLDP Enable、Auto MLDP disable
 	setting_mode();
 	lcd_cmd(0x01); // clear display
-	lcd_puts("Display [ ");
+	lcd_puts("Receive [ ");
 	lcd_puts(strAddr);
 	lcd_puts(" ]");
 	RCV_FILTER = 1;
